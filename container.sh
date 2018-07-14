@@ -7,7 +7,9 @@ case "$1" in
 # Intialize
 'init')
 mkdir -p $docker-root/misp-db
-sudo docker run -it --rm -v /home/mcafee/misp-db:/var/lib/mysql ${LOCATION} /init-db
+sudo docker run -it --rm \
+            -v /home/mcafee/misp-db:/var/lib/mysql \
+            ${LOCATION} /init-db
 ;;
 
 # Stop and Remove
