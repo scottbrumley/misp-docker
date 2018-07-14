@@ -39,10 +39,11 @@ sudo docker run -it -d \
     -p 443:443 \
     -p 80:80 \
     -p 3306:3306 \
-    -v /home/mcafee/misp/config/certs/:/etc/ssl/private \
     -v $docker-root/misp-db:/var/lib/mysql \
    ${LOCATION}
 ;;
+
+#-v /home/mcafee/misp/config/certs/:/etc/ssl/private \
 
 # Purge All Containers
 'purge-all')
