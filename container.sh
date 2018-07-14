@@ -8,7 +8,7 @@ case "$1" in
 'init')
 mkdir -p ${DOCKER_ROOT}/misp-db
 sudo docker run -it --rm \
-            -v ${DOCKER_ROOT}misp-db:/var/lib/mysql \
+            -v ${DOCKER_ROOT}/misp-db:/var/lib/mysql \
             ${LOCATION} /init-db
 ;;
 
