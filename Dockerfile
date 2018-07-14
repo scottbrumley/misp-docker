@@ -21,6 +21,12 @@ EXPOSE 80 443 3306 6379 50000
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y supervisor cron logrotate syslog-ng-core postfix curl gcc git gnupg-agent make python python3 openssl redis-server sudo vim zip wget mariadb-client mariadb-server apache2 apache2-doc apache2-utils libapache2-mod-php php php-cli php-gnupg php-dev php-json php-mysql php-opcache php-readline php-redis php-xml php-mbstring rng-tools python3-dev python3-pip libxml2-dev libxslt1-dev zlib1g-dev python-setuptools libpq5 libjpeg-dev
 
+# Edit the php.ini file to adjust initial PHP settings to MISP recommended settings
+RUN sed -i "s/max_execution_time = 30/max_execution_time = 300/" /etc/php/7.2/apache2/php.ini ; \
+    sed -i "s/memory_limit = 128M/memory_limit = 512M/" /etc/php/7.2/apache2/php.ini ; \
+    sed -i "s/upload_max_filesize = 2M/upload_max_filesize = 50M/" /etc/php/7.2/apache2/php.ini ; \
+    sed -i "s/post_max_size = 8M/post_max_size = 50M/" /etc/php/7.2/apache2/php.ini
+
     #echo "test -e /var/run/mysqld || install -m 755 -o mysql -g root -d /var/run/mysqld" ; \
 RUN sed -i -E 's/^(\s*)system\(\);/\1unix-stream("\/dev\/log");/' /etc/syslog-ng/syslog-ng.conf ; \
     postconf -e "relayhost = $POSTFIX_RELAY_HOST" ; \
@@ -29,10 +35,15 @@ RUN sed -i -E 's/^(\s*)system\(\);/\1unix-stream("\/dev\/log");/' /etc/syslog-ng
     a2enmod ssl rewrite headers; \
     a2ensite 000-default ; \
     a2ensite default-ssl ; \
-    mkdir -p /var/www/MISP /root/.config /root/.git ; \
-    chown -R www-data:www-data /var/www/MISP /root/.config /root/.git; \
+    mkdir -p /var/www/MISP /root/.config /root/.git
+
+WORKDIR /var/www/MISP
+RUN chown -R www-data:www-data /var/www/MISP /root/.config /root/.git; \
     sudo -u www-data -H git clone https://github.com/MISP/MISP.git /var/www/MISP ; \
     sudo -u www-data -H git checkout tags/$(git describe --tags `git rev-list --tags --max-count=1`) ; \
+    sudo -u www-data -H git submodule init ; \
+    sudo -u www-data -H git submodule update ; \
+    sudo -u www-data -H git submodule foreach git config core.filemode false ; \
     sudo -u www-data -H git config core.filemode false ; \
     echo
 
@@ -41,19 +52,22 @@ RUN sudo -u www-data -H git clone https://github.com/CybOXProject/python-cybox.g
     sudo -u www-data -H git clone https://github.com/STIXProject/python-stix.git
 
 WORKDIR /var/www/MISP/app/files/scripts/python-cybox
-RUN python3 setup.py install
+RUN sudo python3 setup.py install
 
 WORKDIR /var/www/MISP/app/files/scripts/python-stix
-RUN python3 setup.py install
+RUN sudo python3 setup.py install
 
 WORKDIR /var/www/MISP/app/files/scripts/
 RUN sudo -u www-data -H git clone https://github.com/CybOXProject/mixbox.git ; \
     cd /var/www/MISP/app/files/scripts/mixbox ; \
-    python3 setup.py install
+    sudo python3 setup.py install
 
 WORKDIR /var/www/MISP
 RUN sudo -u www-data -H git submodule init ; \
     sudo -u www-data -H git submodule update
+
+RUN sudo pip3 install jsonschema ; \
+    sudo pip3 install pymisp
 
 WORKDIR /var/www/MISP/PyMISP
 RUN python3 setup.py install
@@ -67,6 +81,8 @@ RUN sudo -H git clone https://github.com/MISP/misp-modules.git
 WORKDIR /usr/local/src/misp-modules
 RUN sudo pip3 install -I -r REQUIREMENTS ;  \
     sudo pip3 install -I .
+
+RUN sudo pip3 uninstall -y cybox
 
 WORKDIR /var/www/MISP/app
 RUN mkdir /var/www/.composer && chown -R www-data:www-data /var/www/.composer ; \
@@ -121,16 +137,13 @@ RUN sed -i -e 's/db login/misp/g' /var/www/MISP/app/Config/database.php ; \
     sed -i -e "s/bind 127.0.0.1 ::1/bind 0.0.0.0/" /etc/redis/redis.conf ; \
     sudo chown -R www-data:www-data /var/www/MISP/app/Config ; \
     sudo chmod -R 750 /var/www/MISP/app/Config ; \
-    sudo pip2 install --upgrade pip ; \
-    sudo pip2 install pyzmq ; \
-    sudo pip2 install redis ; \
     sudo pip3 install --upgrade pip ; \
     sudo pip3 install pyzmq ; \
     sudo pip3 install redis ; \
     sudo -u www-data -H wget http://downloads.sourceforge.net/project/ssdeep/ssdeep-2.13/ssdeep-2.13.tar.gz ; \
     tar zxvf ssdeep-2.13.tar.gz && cd ssdeep-2.13 && ./configure && make && sudo make install ; \
     sudo pecl install ssdeep ; \
-    sudo echo "extension=ssdeep.so" > /etc/php/7.0/mods-available/ssdeep.ini ; \
+    sudo echo "extension=ssdeep.so" > /etc/php/7.2/mods-available/ssdeep.ini ; \
     sudo phpenmod ssdeep ; \
     echo "#!/bin/bash" > /init-db ; \
     echo "if [ ! -f /var/lib/mysql/.db_initialized ]; then" >> /init-db ; \
@@ -166,32 +179,32 @@ RUN sed -i -e 's/db login/misp/g' /var/www/MISP/app/Config/database.php ; \
     sudo rm -f /dev/random ; \
     sudo mknod -m 0666 /dev/random c 1 9 ; \
     sudo echo RNGDOPTIONS="--random-device /dev/urandom --rng-device /dev/urandom" | sudo tee /etc/default/rng-tools ; \
-        sudo echo HRNGDEVICE=/dev/urandom | sudo tee /etc/default/rng-tools ; \
-        sudo /etc/init.d/rng-tools restart ; \
-        sudo rngd -f -r /dev/urandom ; \
-        chown www-data /tmp/config_gpg ; \
-        sudo -u www-data sh -c "gpg --batch --homedir /var/www/MISP/.gnupg --gen-key /tmp/config_gpg" ; \
-        sudo -u www-data sh -c "gpg --homedir /var/www/MISP/.gnupg --export --armor $MISP_EMAIL > /var/www/MISP/app/webroot/gpg.asc" ; \
-        sudo /etc/init.d/rng-tools stop ; \
-        sudo apt-get remove --purge -y rng-tools
+    sudo echo HRNGDEVICE=/dev/urandom | sudo tee /etc/default/rng-tools ; \
+    sudo /etc/init.d/rng-tools restart ; \
+    sudo rngd -f -r /dev/urandom ; \
+    chown www-data /tmp/config_gpg ; \
+    sudo -u www-data sh -c "gpg --batch --homedir /var/www/MISP/.gnupg --gen-key /tmp/config_gpg" ; \
+    sudo -u www-data sh -c "gpg --homedir /var/www/MISP/.gnupg --export --armor $MISP_EMAIL > /var/www/MISP/app/webroot/gpg.asc" ; \
+    sudo /etc/init.d/rng-tools stop ; \
+    sudo apt-get remove --purge -y rng-tools
 
-    WORKDIR /etc/logrotate.d
-    RUN echo "/var/www/MISP/app/tmp/logs/resque-*-error.log {" > misp ; \
-        echo "      rotate 30" >> misp ; \
-        echo "      dateext" >> misp ; \
-        echo "      missingok" >> misp ; \
-        echo "      notifempty" >> misp ; \
-        echo "      compress" >> misp ; \
-        echo "      weekly" >> misp ; \
-        echo "      copytruncate" >> misp ; \
-        echo "}" >> misp
+WORKDIR /etc/logrotate.d
+RUN echo "/var/www/MISP/app/tmp/logs/resque-*-error.log {" > misp ; \
+    echo "      rotate 30" >> misp ; \
+    echo "      dateext" >> misp ; \
+    echo "      missingok" >> misp ; \
+    echo "      notifempty" >> misp ; \
+    echo "      compress" >> misp ; \
+    echo "      weekly" >> misp ; \
+    echo "      copytruncate" >> misp ; \
+    echo "}" >> misp
 
 
-    WORKDIR /var/www/MISP
-    COPY config/supervisord.conf /etc/supervisor/conf.d/
+WORKDIR /var/www/MISP
+COPY supervisord.conf /etc/supervisor/conf.d/
 
-    #>&2 echo "The default user = "admin@admin.test" | The default password = admin" ; \
-    # To change it:
-    #echo "/var/www/MISP/app/Console/cake Password 'admin@admin.test' '@dmin1!'" >> /root/init-db ; \
+#>&2 echo "The default user = "admin@admin.test" | The default password = admin" ; \
+# To change it:
+#echo "/var/www/MISP/app/Console/cake Password 'admin@admin.test' '@dmin1!'" >> /root/init-db ; \
 
-    CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
