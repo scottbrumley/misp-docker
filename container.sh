@@ -6,7 +6,7 @@ case "$1" in
 
 # Intialize
 'init')
-mkdir -p /home/mcafee/misp-db
+mkdir -p $docker-root/misp-db
 sudo docker run -it --rm -v /home/mcafee/misp-db:/var/lib/mysql ${LOCATION} /init-db
 ;;
 
@@ -23,7 +23,7 @@ sudo docker build \
     --rm=true --force-rm=true \
     --build-arg MYSQL_MISP_PASSWORD=ChangeThisDefaultPassworda9564ebc3289b7a14551baf8ad5ec60a \
     --build-arg POSTFIX_RELAY_HOST=localhost \
-    --build-arg MISP_FQDN=misp \
+    --build-arg MISP_FQDN=localhost \
     --build-arg MISP_EMAIL=admin@localhost \
     -t ${LOCATION} .
 ;;
@@ -38,7 +38,7 @@ sudo docker run -it -d \
     -p 80:80 \
     -p 3306:3306 \
     -v /home/mcafee/misp/config/certs/:/etc/ssl/private \
-    -v /home/mcafee/misp-db:/var/lib/mysql \
+    -v $docker-root/misp-db:/var/lib/mysql \
    ${LOCATION}
 ;;
 

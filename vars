@@ -1,2 +1,3 @@
 NAME=mcafee-misp
 LOCATION=mcafee/misp
+docker-root=/docker
