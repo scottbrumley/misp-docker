@@ -201,7 +201,7 @@ RUN echo "/var/www/MISP/app/tmp/logs/resque-*-error.log {" > misp ; \
 
 
 WORKDIR /var/www/MISP
-COPY supervisord.conf /etc/supervisor/conf.d/
+COPY config/supervisord.conf /etc/supervisor/conf.d/
 
 #>&2 echo "The default user = "admin@admin.test" | The default password = admin" ; \
 # To change it:
