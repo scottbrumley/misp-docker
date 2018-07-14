@@ -6,9 +6,9 @@ case "$1" in
 
 # Intialize
 'init')
-mkdir -p $docker-root/misp-db
+mkdir -p ${DOCKER_ROOT}/misp-db
 sudo docker run -it --rm \
-            -v /home/mcafee/misp-db:/var/lib/mysql \
+            -v ${DOCKER_ROOT}misp-db:/var/lib/mysql \
             ${LOCATION} /init-db
 ;;
 
@@ -39,7 +39,7 @@ sudo docker run -it -d \
     -p 443:443 \
     -p 80:80 \
     -p 3306:3306 \
-    -v $docker-root/misp-db:/var/lib/mysql \
+    -v ${DOCKER_ROOT}/misp-db:/var/lib/mysql \
    ${LOCATION}
 ;;
 
